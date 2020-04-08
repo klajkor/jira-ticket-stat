@@ -24,11 +24,13 @@ options = {
  'server': jira_server
 }
 jql_string_R5 = 'project = CCP AND fixVersion in ("Release 5.0") ORDER BY type DESC,  key ASC'
+jql_string_R6 = 'project = CCP AND fixVersion in ("Release 6.0") ORDER BY type DESC,  key ASC'
 jql_string_all_epics = 'project = CCP AND type in (Epic) ORDER BY KEY ASC'
+jql_string_sprint = 'issueKey in (CCP-443,CCP-628,CCP-640,CCP-1431,CCP-1543,CCP-1571,CCP-1580,CCP-1582,CCP-1617,CCP-1625)'
 
 ticket_list_file = 'ticket_list.csv'
 ticket_history_file = 'ticket_history.csv'
-ticket_header = ['Issue key', 'Type', 'Summary', 'Status', 'Release', 'Story Point', 'Last Sprint', 'Created', 'Updated', 'Epic Key', 'Epic Title', 'Labels']
+ticket_header = ['Issue key', 'Type', 'Summary', 'Status', 'Release', 'Story Point', 'First Sprint', 'Last Sprint', 'Created', 'Updated', 'Epic Key', 'Epic Title', 'Labels']
 ticket_raw = []
 history_header = ['Issue key', 'Issue ID', 'Author', 'Timestamp', 'Item type', 'From', 'To']
 history_raw = []
@@ -49,13 +51,25 @@ def run_JQL_query(query_string):
         type_name = issue.fields.issuetype.name
         summary = issue.fields.summary
         status = issue.fields.status.name
-        version_name = issue.fields.fixVersions[0].name
+        version_name = ''
+        if type(issue.fields.fixVersions) is list and len(issue.fields.fixVersions) > 0:
+            version_name = issue.fields.fixVersions[0].name
         story_point = issue.fields.customfield_10105
         if type(story_point) is float:
             story_point = int(story_point)
-        last_sprint = str(re.findall(r"name=[^,]*", issue.fields.customfield_10103[0]))
-        last_sprint = last_sprint.split("=")[1]
-        last_sprint = last_sprint.split("'")[0]
+        first_sprint = ''
+        last_sprint = ''
+        sprints = issue.fields.customfield_10103
+        if type(sprints) is list:
+            sprint_names = []
+            for sprint in sprints:
+                sprint_name = str(re.findall(r"name=[^,]*", sprint))
+                sprint_name = sprint_name.split("=")[1]
+                sprint_name = sprint_name.split("'")[0]
+                sprint_names.append(sprint_name)
+            sprint_names = sorted(sprint_names, key=lambda x: x[0])
+            first_sprint = sprint_names[0]
+            last_sprint = sprint_names[-1]
         issue_created_ts = datetime.strptime(str(issue.fields.created), '%Y-%m-%dT%H:%M:%S.%f%z')
         issue_created_ts = datetime.strftime(issue_created_ts, '%Y-%m-%d %H:%M:%S')
         issue_updated_ts = datetime.strptime(str(issue.fields.updated), '%Y-%m-%dT%H:%M:%S.%f%z')
@@ -68,7 +82,7 @@ def run_JQL_query(query_string):
         labels = issue.fields.labels
         for i in labels:
             all_labels.append(i)
-        ticket_item = [issue.key, type_name, summary, status, version_name, story_point, last_sprint, issue_created_ts, issue_updated_ts, epic_link, epic_link_title, all_labels]
+        ticket_item = [issue.key, type_name, summary, status, version_name, story_point, first_sprint, last_sprint, issue_created_ts, issue_updated_ts, epic_link, epic_link_title, all_labels]
         ticket_raw.append(ticket_item)
     with open(ticket_list_file, mode='w', newline='', encoding='utf-8') as csv_file:
         csv_file = csv.writer(csv_file, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
@@ -107,7 +121,7 @@ def filter_non_printable(str):
 
 jira = JIRA(options, basic_auth=(jira_user,jira_apikey))
 all_epics = get_all_epics(jql_string_all_epics)
-issues_in_proj = run_JQL_query(jql_string_R5)
+issues_in_proj = run_JQL_query(jql_string_sprint)
 collect_all_history(issues_in_proj)
 
 print("--- Execution time: %s seconds ---" % (time.time() - start_time))

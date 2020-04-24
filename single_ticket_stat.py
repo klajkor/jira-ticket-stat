@@ -21,29 +21,33 @@ jira_user = jira_credentials.login['jira_user']
 jira_apikey = jira_credentials.login['jira_apikey']
 jira_server = 'https://bmigroup.atlassian.net'
 options = {
- 'server': jira_server
+    'server': jira_server
 }
 jql_string_R5 = 'project = CCP AND fixVersion in ("Release 5.0") ORDER BY type DESC,  key ASC'
 jql_string_R51 = 'project = CCP AND fixVersion in ("Release 5.1") ORDER BY type DESC,  key ASC'
 jql_string_R6 = 'project = CCP AND fixVersion in ("Release 6.0") ORDER BY type DESC,  key ASC'
 jql_string_all_epics = 'project = CCP AND type in (Epic) ORDER BY KEY ASC'
-jql_string_sprint = 'issueKey in (CCP-443,CCP-628,CCP-640,CCP-1431,CCP-1543,CCP-1571,CCP-1580,CCP-1582,CCP-1617,CCP-1625)'
+jql_string_sprint = 'issueKey in (CCP-640,CCP-1431,CCP-1543,CCP-1571,CCP-1633,CCP-1643,CCP-1644,CCP-1677)'
 jql_string_lms = 'project = CCP AND type in (Story) AND "Epic Link" in (CCP-1666, CCP-1651, CCP-1652) ORDER BY key ASC'
 jql_string_lms_p1 = 'project = CCP AND type in (Story) AND "Epic Link" = CCP-1666 ORDER BY key ASC'
-jql_string_tahir = 'issueKey in (CCP-1582,CCP-628,CCP-640,CCP-1508,CCP-1580,CCP-443,CCP-1294,CCP-1295,CCP-1535,CCP-1595,CCP-1602,CCP-1603,CCP-1617,CCP-1640)'
+jql_string_tahir = 'issueKey in (CCP-1180, CCP-1643)'
 
+dev_sprint_board_id = 100
 FMT_date_time = '%Y-%m-%d %H:%M:%S'
 ticket_list_file = 'ticket_list.csv'
 ticket_history_file = 'ticket_history.csv'
 ticket_transition_file = 'ticket_transition.csv'
-ticket_header = ['Issue key', 'Type', 'Summary', 'Status', 'Release', 'Story Point', 'First Sprint', 'Last Sprint', 'Created', 'Updated', 'Epic Key', 'Epic Title', 'Labels', 'URL']
+ticket_header = ['Issue key', 'Type', 'Summary', 'Status', 'Release', 'Story Point', 'First Sprint', 'Last Sprint',
+                 'Created', 'Updated', 'Epic Key', 'Epic Title', 'Labels', 'URL']
 ticket_raw = []
 history_header = ['Issue key', 'Issue ID', 'Author', 'Timestamp', 'Item type', 'From', 'To']
-transition_header = ['Issue key', 'Issue ID', 'Previous Status', 'New Status', 'Prev TS', 'New TS', 'Elapsed time', 'Author']
+transition_header = ['Issue key', 'Issue ID', 'Previous Status', 'New Status', 'Prev TS', 'New TS', 'Elapsed time',
+                     'Author']
 all_epics = {}
 issues_in_proj = {}
 
 ticket_phases_map = {'In Progress': 'Dev Time', 'ToDo': 'Backlog'}
+
 
 def get_all_epics(query_string):
     tmp_dict = {}
@@ -91,7 +95,8 @@ def run_JQL_query(query_string):
         for i in labels:
             all_labels.append(i)
         url = issue.permalink()
-        ticket_item = [issue.key, type_name, summary, status, version_name, story_point, first_sprint, last_sprint, issue_created_ts, issue_updated_ts, epic_link, epic_link_title, all_labels, url]
+        ticket_item = [issue.key, type_name, summary, status, version_name, story_point, first_sprint, last_sprint,
+                       issue_created_ts, issue_updated_ts, epic_link, epic_link_title, all_labels, url]
         ticket_raw.append(ticket_item)
     with open(ticket_list_file, mode='w', newline='', encoding='utf-8') as csv_file:
         csv_file = csv.writer(csv_file, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
@@ -99,6 +104,7 @@ def run_JQL_query(query_string):
         for item in ticket_raw:
             csv_file.writerow(item)
     return issues_in_query
+
 
 def collect_all_history(issues):
     history_raw = []
@@ -110,7 +116,7 @@ def collect_all_history(issues):
         prev_ts = datetime.strptime(str(issue.fields.created), '%Y-%m-%dT%H:%M:%S.%f%z')
         prev_ts = datetime.strftime(prev_ts, FMT_date_time)
         changelog_histories = issue.changelog.histories
-        #print(type(changelog_histories))
+        # print(type(changelog_histories))
         changelog_histories = sorted(changelog_histories, key=lambda x: x.created)
         for history in changelog_histories:
             for item in history.items:
@@ -122,14 +128,15 @@ def collect_all_history(issues):
                     history_item = [key, issue_id, author_name, created_ts, item.field, item.fromString, item.toString]
                     history_raw.append(history_item)
                     if item.field == 'status':
-                        #elapsed = datetime.strftime(tdelta, FMT_date_time)
+                        # elapsed = datetime.strftime(tdelta, FMT_date_time)
                         tdelta = ''
-                        transition_item = [key, issue_id, item.fromString, item.toString, prev_ts, created_ts, tdelta, author_name]
+                        transition_item = [key, issue_id, item.fromString, item.toString, prev_ts, created_ts, tdelta,
+                                           author_name]
                         transition_raw.append(transition_item)
                         prev_ts = created_ts
 
-    #history_raw = sorted(history_raw, key=lambda x: (x[1], x[3]))
-    #transition_raw = sorted(transition_raw, key=lambda x: (x[1], x[4]))
+    # history_raw = sorted(history_raw, key=lambda x: (x[1], x[3]))
+    # transition_raw = sorted(transition_raw, key=lambda x: (x[1], x[4]))
     for item in transition_raw:
         tdelta = datetime.strptime(item[5], FMT_date_time) - datetime.strptime(item[4], FMT_date_time)
         item[6] = tdelta
@@ -146,12 +153,40 @@ def collect_all_history(issues):
         for item in transition_raw:
             csv_file.writerow(item)
 
+
 def filter_non_printable(str):
     return ''.join([c for c in str if ord(c) > 31 or ord(c) == 9])
 
-jira = JIRA(options, basic_auth=(jira_user,jira_apikey))
-all_epics = get_all_epics(jql_string_all_epics)
-issues_in_proj = run_JQL_query(jql_string_R51)
-#collect_all_history(issues_in_proj)
 
+def sprint_report(board_id, sprint_id):
+    # Calculate Incompleted Issues
+    sum_incompl = jira.incompletedIssuesEstimateSum(board_id, sprint_id)
+    # Completed
+    sum_compl = jira.completedIssuesEstimateSum(board_id, sprint_id)
+
+    # Print all
+    print
+    "Sum Incompleted Issues: ", sum_incompl
+    print
+    "Sum Completed Issues ", sum_compl
+
+def get_sprint_id(sprint_name):
+    sprint_id = -1
+    sprints = jira.sprints(dev_sprint_board_id)
+    for sprint in sprints:
+        if sprint.name == sprint_name:
+            sprint_id = sprint.id
+    return sprint_id
+
+jira = JIRA(options, basic_auth=(jira_user, jira_apikey))
+all_epics = get_all_epics(jql_string_all_epics)
+issues_in_proj = run_JQL_query(jql_string_tahir)
+# collect_all_history(issues_in_proj)
+print(jira.sprint_info(0, get_sprint_id("CCP Dev Sprint 40")))
+print("##########")
+
+
+##sprint_report(dev_sprint_board_id, get_sprint_id("CCP Dev Sprint 40"))
+
+jira.close()
 print("--- Execution time: %s seconds ---" % (time.time() - start_time))

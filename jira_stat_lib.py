@@ -12,10 +12,11 @@ import numpy as np
 import logging
 import json
 
-global FMT_date_time, ticket_header
+global FMT_date_time, ticket_header, dev_sprint_board_id
 FMT_date_time = '%Y-%m-%d %H:%M:%S'
 ticket_header = ['Issue key', 'Type', 'Summary', 'Status', 'Release', 'Story Point', 'First Sprint', 'Last Sprint',
                  'Created', 'Updated', 'Epic Key', 'Epic Title', 'Labels', 'URL']
+dev_sprint_board_id = 100  ## "Dev Sprint Board"
 
 
 def get_all_epics(jira_object, query_string):
@@ -78,3 +79,43 @@ def export_issues_to_csv(jira_object, query_string, all_epics_dict, csv_file_nam
 
 def filter_non_printable(string_par):
     return ''.join([c for c in string_par if ord(c) > 31 or ord(c) == 9])
+
+
+def get_sprint_id(jira_object, board_id, sprint_name):
+    sprint_id = -1
+    sprints = jira_object.sprints(board_id)
+    for sprint in sprints:
+        if sprint.name == sprint_name:
+            sprint_id = sprint.id
+    return sprint_id
+
+
+def get_all_sprints(jira_object, board_id):
+    dict_sprint = {}
+    list_all_sprints = []
+    all_sprints = []
+    temp_all_sprints = jira_object.sprints(board_id, False, 0, 100)
+    for jira_sprint in temp_all_sprints:
+        sprint_info = jira_object.sprint_info(board_id, jira_sprint.id)
+        name = sprint_info['name']
+        sprint_id = sprint_info['id']
+        if sprint_info['isoStartDate'] != 'None':
+            start_date = datetime.strptime(sprint_info['isoStartDate'], '%Y-%m-%dT%H:%M:%S%z')
+        else:
+            start_date = datetime.strptime('2211-11-22T22:11:22+0100', '%Y-%m-%dT%H:%M:%S%z')
+        if sprint_info['isoEndDate'] != 'None':
+            end_date = datetime.strptime(sprint_info['isoEndDate'], '%Y-%m-%dT%H:%M:%S%z')
+        else:
+            end_date = None
+        if sprint_info['isoCompleteDate'] != 'None':
+            complete_date = datetime.strptime(sprint_info['isoCompleteDate'], '%Y-%m-%dT%H:%M:%S%z')
+        else:
+            complete_date = None
+        state = sprint_info['state']
+        sprint_item = [sprint_id, name, state, start_date, end_date, complete_date]
+        dict_sprint = {'sprint_id': sprint_id, 'name': name, 'state': state, 'start_date': start_date, 'end_date': end_date,
+                       'complete_date': complete_date}
+        all_sprints.append(sprint_item)
+        list_all_sprints.append(dict_sprint)
+    all_sprints = sorted(all_sprints, key=lambda x: (x[3], x[1]))
+    return list_all_sprints

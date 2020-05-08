@@ -5,6 +5,7 @@ import time
 import re
 import ast
 import csv
+from operator import attrgetter
 
 from jira import JIRA
 import pandas as pd
@@ -14,6 +15,7 @@ import json
 
 global FMT_date_time, ticket_header, dev_sprint_board_id
 FMT_date_time = '%Y-%m-%d %H:%M:%S'
+FMT_jql_date_time = '%Y-%m-%d %H:%M'
 ticket_header = ['Issue key', 'Type', 'Summary', 'Status', 'Release', 'Story Point', 'First Sprint', 'Last Sprint',
                  'Created', 'Updated', 'Epic Key', 'Epic Title', 'Labels', 'URL']
 dev_sprint_board_id = 100  ## "Dev Sprint Board"
@@ -90,11 +92,9 @@ def get_sprint_id(jira_object, board_id, sprint_name):
     return sprint_id
 
 
-def get_all_sprints(jira_object, board_id):
-    dict_sprint = {}
+def get_all_sprints(jira_object, board_id, sprint_start_at=0, sprint_max_results=10):
     list_all_sprints = []
-    all_sprints = []
-    temp_all_sprints = jira_object.sprints(board_id, False, 0, 100)
+    temp_all_sprints = jira_object.sprints(board_id, extended=False, startAt=sprint_start_at, maxResults=sprint_max_results)
     for jira_sprint in temp_all_sprints:
         sprint_info = jira_object.sprint_info(board_id, jira_sprint.id)
         name = sprint_info['name']
@@ -112,10 +112,33 @@ def get_all_sprints(jira_object, board_id):
         else:
             complete_date = None
         state = sprint_info['state']
-        sprint_item = [sprint_id, name, state, start_date, end_date, complete_date]
-        dict_sprint = {'sprint_id': sprint_id, 'name': name, 'state': state, 'start_date': start_date, 'end_date': end_date,
-                       'complete_date': complete_date}
-        all_sprints.append(sprint_item)
+        incomplete_estimates = 0
+        complete_estimates = 0
+        complete_stories = 0
+        fixed_bugs = 0
+
+        sprint_jql = 'project = CCP AND type in (Story, Bug) AND statusCategory in (Done) AND Sprint in ("' + name
+        sprint_jql += '") AND statusCategoryChangedDate >= "' + datetime.strftime(start_date, FMT_jql_date_time) + '"'
+        sprint_jql += ' AND statusCategoryChangedDate <= "' + datetime.strftime(end_date, FMT_jql_date_time) + '"'
+        # print(sprint_jql)
+        # issues_in_query = []
+        issues_in_query = jira_object.search_issues(sprint_jql, maxResults=100)
+        for issue in issues_in_query:
+            if issue.fields.issuetype.name == 'Story':
+                complete_stories += 1
+            if issue.fields.issuetype.name == 'Bug':
+                fixed_bugs += 1
+            story_point = issue.fields.customfield_10105
+            if type(story_point) is float:
+                story_point = int(story_point)
+            else:
+                story_point = 0
+            complete_estimates += story_point
+        dict_sprint = {'sprint_id': sprint_id, 'name': name, 'state': state, 'start_date': start_date,
+                       'end_date': end_date, 'complete_date': complete_date, 'complete_estimates': complete_estimates,
+                       'incomplete_estimates': incomplete_estimates, 'complete_stories': complete_stories,
+                       'fixed_bugs': fixed_bugs}
         list_all_sprints.append(dict_sprint)
-    all_sprints = sorted(all_sprints, key=lambda x: (x[3], x[1]))
+    list_all_sprints = sorted(list_all_sprints, key=lambda x: (x['start_date'], x['name']))
     return list_all_sprints
+

@@ -1,2 +1,4 @@
 jira_credentials.py
 *.csv
+/Logs/
+/Config/

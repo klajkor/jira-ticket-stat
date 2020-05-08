@@ -1,10 +1,11 @@
 # library modules
 import time
 from jira import JIRA
+from operator import attrgetter
 
 # local include files
 import jira_credentials
-import jira_stat_lib
+import jira_stat_lib as jsl
 
 start_time = time.time()
 
@@ -18,9 +19,8 @@ options = {
 
 if __name__ == '__main__':
     jira = JIRA(options, basic_auth=(jira_user, jira_apikey))
-    print(jira.sprint_info(0, jira_stat_lib.get_sprint_id(jira, jira_stat_lib.dev_sprint_board_id, "CCP Dev Sprint 40")))
-    print("#####-----------------#####")
-    all_sprints = jira_stat_lib.get_all_sprints(jira, jira_stat_lib.dev_sprint_board_id)
+    # print(jira.sprint_info(0, jsl.get_sprint_id(jira, jsl.dev_sprint_board_id, "CCP Dev Sprint 40")))
+    all_sprints = jsl.get_all_sprints(jira, jsl.dev_sprint_board_id, 90, 100)
     for sprint in all_sprints:
         print(sprint)
     print("#####-----------------#####")
